@@ -21,8 +21,26 @@ class HandType(Enum):
     @classmethod
     def get_type(cls, cards: str) -> int:
         counts = [c for _, c in Counter(cards).most_common()]
+        return cls._counts_to_type(counts=counts)
 
-        if len(counts) == 1:
+    @classmethod
+    def get_type_with_joker(cls, cards: str) -> int:
+        num_jokers = cards.count("J")
+        counts = [
+            cnt 
+            for _, cnt in Counter([c for c in cards if c != "J"]).most_common()
+        ]
+
+        if not counts:
+            counts = [5]  # All jokers
+        else:
+            counts[0] += num_jokers
+
+        return cls._counts_to_type(counts=counts)
+
+    @classmethod
+    def _counts_to_type(cls, counts: list[int]) -> int:
+        if counts == [5]:
             return cls.FIVE_OF_A_KIND.value
         elif counts == [4, 1]:
             return cls.FOUR_OF_A_KIND.value
@@ -36,9 +54,6 @@ class HandType(Enum):
             return cls.ONE_PAIR.value
         else:
             return cls.HIGH_CARD.value
-
-
-CARD_PRIORITY = ["A", "K", "Q", "J", "T", "9", "8", "7", "6", "5", "4", "3", "2"][::-1]
 
 
 InputData = list[Hand]
@@ -55,26 +70,43 @@ def parse_input(path: str) -> InputData:
 
 
 def solve_part_one(data: InputData) -> int:
-    answer = 0
-
-    for rank, hand in zip(range(1, len(data) + 1), sort_hands(data)):
-        answer += rank * hand.bid
-
-    return answer
-
-
-def sort_hands(data: InputData) -> InputData:
-    return sorted(
-        data,
-        key=lambda hand: (
-            HandType.get_type(hand.cards),
-            *[CARD_PRIORITY.index(card) for card in hand.cards],
-        ),
+    return compute_answer(
+        data=data,
+        type_fn=HandType.get_type,
+        card_priorities=[
+            "2", "3", "4", "5", "6", "7", "8", "9", "T", "J", "Q", "K", "A",
+        ],
     )
 
 
 def solve_part_two(data: InputData) -> int:
-    answer = ...
+    return compute_answer(
+        data=data,
+        type_fn=HandType.get_type_with_joker,
+        card_priorities=[
+            "J", "2", "3", "4", "5", "6", "7", "8", "9", "T", "Q", "K", "A",
+        ],
+    )
+
+
+def compute_answer(
+    data: InputData,
+    type_fn,
+    card_priorities: list[str],
+) -> int:
+    answer = 0
+
+    sorted_hands = sorted(
+        data,
+        key=lambda hand: (
+            type_fn(hand.cards),
+            *[card_priorities.index(card) for card in hand.cards],
+        ),
+    )
+
+
+    for rank, hand in zip(range(1, len(data) + 1), sorted_hands):
+        answer += rank * hand.bid
 
     return answer
 
@@ -88,6 +120,11 @@ def run_tests():
     assert HandType.get_type("A23A4") == 2
     assert HandType.get_type("23456") == 1
 
+    assert HandType.get_type_with_joker("32T3K") == 2  # ONE PAIR
+    assert HandType.get_type_with_joker("KK677") == 3  # TWO PAIR
+    assert HandType.get_type_with_joker("T55J5") == 6  # FOUR OF A KIND
+    assert HandType.get_type_with_joker("KTJJT") == 6  # FOUR OF A KIND
+    assert HandType.get_type_with_joker("QQQJA") == 6  # FOUR OF A KIND
 
     data = parse_input("data/example.txt")
 
@@ -97,7 +134,7 @@ def run_tests():
 
     part_two = solve_part_two(data)
     print("Example - part 2:", part_two)
-    assert part_two == ...
+    assert part_two == 5_905
 
 
 def main():
