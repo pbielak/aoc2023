@@ -32,9 +32,6 @@ def parse_input(path: str) -> InputData:
 
         for y, line in enumerate(fin.readlines()):
             for x, pipe in enumerate(line.strip()):
-                if pipe == ".":
-                    continue
-
                 pos = Position(x, y)
 
                 pipes[pos] = pipe
@@ -79,12 +76,13 @@ def parse_input(path: str) -> InputData:
 
 
 def solve_part_one(data: InputData) -> int:
-    answer = find_loop_radius(data)
+    dists = find_loop(data)
+    answer = max(dists.values())
 
     return answer
 
 
-def find_loop_radius(data: InputData) -> int:
+def find_loop(data: InputData) -> dict[Position, int]:
     dists: dict[Position, int] = {}
     visited: set[Position] = set()
 
@@ -102,12 +100,27 @@ def find_loop_radius(data: InputData) -> int:
         for n_pos in data.edges.get(pos, []):
             queue.append((n_pos, dist + 1))
 
-    return max(dists.values())
-
+    return dists
 
 
 def solve_part_two(data: InputData) -> int:
-    answer = ...
+    dists = find_loop(data)
+    loop_pipes = set(dists.keys())
+
+    answer = 0
+
+    for pos in data.pipes.keys():
+        if pos in loop_pipes:
+            continue
+
+        n_west = len([
+            p 
+            for p in loop_pipes 
+            if p.y == pos.y and p.x < pos.x
+            and data.pipes[p] in ("|", "J", "L", "S")
+        ])
+
+        answer += n_west % 2 == 1
 
     return answer
 
@@ -119,15 +132,30 @@ def run_tests():
     print("Example - part 1:", part_one)
     assert part_one == 8
 
-    part_two = solve_part_two(data)
-    print("Example - part 2:", part_two)
-    assert part_two == ...
-
     data = parse_input("data/example2.txt")
 
     part_one = solve_part_one(data)
     print("Example2 - part 1:", part_one)
     assert part_one == 4
+
+    # Off by one error if counting "S"
+#    data = parse_input("data/example3.txt")
+#
+#    part_two = solve_part_two(data)
+#    print("Example3 - part 2:", part_two)
+#    assert part_two == 4
+
+#    data = parse_input("data/example4.txt")
+#
+#    part_two = solve_part_two(data)
+#    print("Example4 - part 2:", part_two)
+#    assert part_two == 8
+
+    data = parse_input("data/example5.txt")
+
+    part_two = solve_part_two(data)
+    print("Example5 - part 2:", part_two)
+    assert part_two == 10
 
 
 def main():
