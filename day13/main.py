@@ -16,22 +16,33 @@ def parse_input(path: str) -> InputData:
 
 
 def solve_part_one(data: InputData) -> int:
-    answer = 0
+    return compute_summary(data=data, accepted_diffs=0)
+
+
+def solve_part_two(data: InputData) -> int:
+    return compute_summary(data=data, accepted_diffs=1)
+
+
+def compute_summary(data: InputData, accepted_diffs: int) -> int:
+    summary = 0
 
     for pattern in data:
-        v_idx = find_vertical_reflection_idx(pattern)
-        h_idx = find_horizontal_reflection_idx(pattern)
+        v_idx = find_vertical_reflection_idx(pattern, accepted_diffs)
+        h_idx = find_horizontal_reflection_idx(pattern, accepted_diffs)
 
         if v_idx is not None:
-            answer += v_idx + 1
+            summary += v_idx + 1
 
         if h_idx is not None:
-            answer += 100 * (h_idx + 1)
+            summary += 100 * (h_idx + 1)
 
-    return answer
+    return summary
 
 
-def find_horizontal_reflection_idx(pattern: Pattern) -> int | None:
+def find_horizontal_reflection_idx(
+    pattern: Pattern,
+    accepted_diffs: int,
+) -> int | None:
     idxs = []
 
     for idx in range(len(pattern) - 1):
@@ -40,7 +51,13 @@ def find_horizontal_reflection_idx(pattern: Pattern) -> int | None:
             for i in range(idx + 1) 
             if idx - i >= 0 and idx + i + 1 < len(pattern)
         ]
-        if all(pattern[i] == pattern[j] for i, j in rows_to_compare):
+
+        num_diffs = 0
+
+        for i, j in rows_to_compare:
+            num_diffs += compare_fn(pattern[i], pattern[j])
+
+        if num_diffs == accepted_diffs:
             idxs.append(idx)
 
     if len(idxs) == 1:
@@ -53,7 +70,10 @@ def find_horizontal_reflection_idx(pattern: Pattern) -> int | None:
         )
 
 
-def find_vertical_reflection_idx(pattern: Pattern) -> int | None:
+def find_vertical_reflection_idx(
+    pattern: Pattern,
+    accepted_diffs: int,
+) -> int | None:
     idxs = []
 
     for idx in range(len(pattern[0]) - 1):
@@ -62,7 +82,16 @@ def find_vertical_reflection_idx(pattern: Pattern) -> int | None:
             for i in range(idx + 1) 
             if idx - i >= 0 and idx + i + 1 < len(pattern[0])
         ]
-        if all(row[i] == row[j] for i, j in cols_to_compare for row in pattern):
+
+        num_diffs = 0
+
+        for i, j in cols_to_compare:
+            num_diffs += compare_fn(
+                first=[row[i] for row in pattern],
+                second=[row[j] for row in pattern],
+            )
+
+        if num_diffs == accepted_diffs:
             idxs.append(idx)
 
     if len(idxs) == 1:
@@ -74,10 +103,17 @@ def find_vertical_reflection_idx(pattern: Pattern) -> int | None:
             "Pattern should have at most one vertical reflection"
         )
 
-def solve_part_two(data: InputData) -> int:
-    answer = ...
 
-    return answer
+def compare_fn(first: str, second: str) -> int:
+    """Returns the number of different characters between the inputs."""
+    assert len(first) == len(second)
+    diff = len(first)
+
+    for a, b in zip(first, second):
+        if a == b:
+            diff -= 1
+
+    return diff
 
 
 def run_tests():
@@ -89,7 +125,7 @@ def run_tests():
 
     part_two = solve_part_two(data)
     print("Example - part 2:", part_two)
-    assert part_two == ...
+    assert part_two == 400
 
 
 def main():
