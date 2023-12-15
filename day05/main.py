@@ -2,33 +2,88 @@
 from typing import NamedTuple
 
 
-class RangeSpecifier(NamedTuple):
-    dst_begin: int
-    src_begin: int
+class Range(NamedTuple):
+    begin: int
     length: int
 
+    @property
+    def end(self) -> int:
+        return self.begin + self.length - 1
 
-class Range(NamedTuple):
-    mappings: list[RangeSpecifier]
+    def contains(self, value: int) -> bool:
+        return self.begin <= value <= self.end
+
+    def contains_range(self, other: "Range") -> bool:
+        return self.begin <= other.begin and other.end <= self.end
+
+    def __repr__(self) -> str:
+        return f"[{self.begin:_}...{self.end:_}]"
+
+
+class Map(NamedTuple):
+    mappings: list[tuple[Range, Range]]
 
     @classmethod
     def from_raw(cls, mappings: list[str]) -> "Range":
-        return Range([
-            RangeSpecifier(*[int(v) for v in mapping.split(" ")])
-            for mapping in mappings
-        ])
+        _mappings = []
+        for mapping in mappings:
+            dst_begin, src_begin, length = [int(v) for v in mapping.split(" ")]
+            _mappings.append(
+                (Range(src_begin, length), Range(dst_begin, length))
+            )
+        _mappings = sorted(_mappings, key=lambda rs: rs[0].begin)
+        return cls(_mappings)
 
     def convert(self, value: int) -> int:
-        for m in self.mappings:
-            if m.src_begin <= value <= m.src_begin + m.length:
-                return m.dst_begin + (value - m.src_begin)
+        for src_range, dst_range in self.mappings:
+            if src_range.contains(value):
+                return dst_range.begin - src_range.begin + value
 
         return value
+
+    def convert_range(self, r: Range) -> list[Range]:
+        for src_range, dst_range in self.mappings:
+            diff = dst_range.begin - src_range.begin
+
+            if src_range.contains_range(r):
+                out = Range(
+                    begin=r.begin + diff,
+                    length=r.length,
+                )
+                return [out]
+
+            elif src_range.begin <= r.begin <= src_range.end:
+                r1 = Range(
+                    begin=r.begin + diff,
+                    length=src_range.length - (r.begin - src_range.begin),
+                )
+                r2 = Range(
+                    begin=src_range.end + 1,
+                    length=r.end - src_range.end,
+                )
+                assert r1.length + r2.length == r.length
+
+                return [r1, *self.convert_range(r2)]
+
+            elif src_range.begin <= r.end <= src_range.end:
+                r1 = Range(
+                    begin=r.begin,
+                    length=src_range.begin - r.begin,
+                )
+                r2 = Range(
+                    begin=src_range.begin,
+                    length=r.end - src_range.begin + 1,
+                )
+                assert r1.length + r2.length == r.length
+
+                return [*self.convert_range(r1), r2]
+
+        return [r]
 
 
 class InputData(NamedTuple):
     seeds: list[int]
-    maps: dict[tuple[str, str], Range]
+    maps: dict[tuple[str, str], Map]
 
 
 def parse_input(path: str) -> InputData:
@@ -43,9 +98,9 @@ def parse_input(path: str) -> InputData:
         for block in fin.read().split("\n\n"):
             name_raw, *mappings_raw = block.strip().split("\n")
             src, dst = name_raw.replace(" map:", "").split("-to-")
-            _range = Range.from_raw(mappings_raw)
+            _map = Map.from_raw(mappings_raw)
 
-            maps[(src, dst)] = _range
+            maps[(src, dst)] = _map
 
         return InputData(seeds=seeds, maps=maps)
 
@@ -54,13 +109,12 @@ def solve_part_one(data: InputData) -> int:
     locations = []
     for seed in data.seeds:
         location = find_closest_location(seed, maps=data.maps)
-#        print(seed, location)
         locations.append(location)
 
     return min(locations)
 
 
-def find_closest_location(seed: int, maps: dict[tuple[str, str], Range]) -> int:
+def find_closest_location(seed: int, maps: dict[tuple[str, str], Map]) -> int:
     soil = maps[("seed", "soil")].convert(value=seed)
     fertilizer = maps[("soil", "fertilizer")].convert(value=soil)
     water = maps[("fertilizer", "water")].convert(value=fertilizer)
@@ -69,13 +123,32 @@ def find_closest_location(seed: int, maps: dict[tuple[str, str], Range]) -> int:
     humidity = maps[("temperature", "humidity")].convert(value=temperature)
     location = maps[("humidity", "location")].convert(value=humidity)
 
-#    print(seed, soil, fertilizer, water, light, temperature, humidity, location)
-
     return location
 
 
 def solve_part_two(data: InputData) -> int:
-    answer = ...
+    def _convert_all(input_ranges, key) -> list[Range]:
+        return [
+            r
+            for ir in input_ranges
+            for r in data.maps[key].convert_range(ir)
+        ]
+
+
+    seed_ranges = []
+    for i in range(0, len(data.seeds) - 1, 2):
+        src, length = data.seeds[i], data.seeds[i + 1]
+        seed_ranges.append(Range(src, length))
+
+    soil_ranges = _convert_all(seed_ranges, ("seed", "soil"))
+    fertilizer_ranges = _convert_all(soil_ranges, ("soil", "fertilizer"))
+    water_ranges = _convert_all(fertilizer_ranges, ("fertilizer", "water"))
+    light_ranges = _convert_all(water_ranges, ("water", "light"))
+    temp_ranges = _convert_all(light_ranges, ("light", "temperature"))
+    humidity_ranges = _convert_all(temp_ranges, ("temperature", "humidity"))
+    location_ranges = _convert_all(humidity_ranges, ("humidity", "location"))
+
+    answer = min(lr.begin for lr in location_ranges)
 
     return answer
 
@@ -89,7 +162,7 @@ def run_tests():
 
     part_two = solve_part_two(data)
     print("Example - part 2:", part_two)
-    assert part_two == ...
+    assert part_two == 46
 
 
 def main():
