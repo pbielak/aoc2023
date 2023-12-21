@@ -1,4 +1,5 @@
 """Day 20"""
+import math
 from abc import abstractmethod
 from typing import NamedTuple
 
@@ -73,14 +74,6 @@ class Broadcaster(Module):
         return [(self.name, p, out) for out in self.outputs]
 
 
-# class Output(Module):
-#     def __init__(self):
-#         super().__init__(name="output")
-# 
-#     def handle(self, pulse: tuple[str, Pulse]) -> list[tuple[str, Pulse]]:
-#         return []
-
-
 InputData = dict[str, FlipFlop | Conjunction | Broadcaster]
 
 
@@ -147,11 +140,35 @@ def solve_part_one(circuit: InputData) -> int:
     return answer
 
 
-def solve_part_two(data: InputData) -> int:
-    answer = ...
+def solve_part_two(circuit: InputData) -> int:
+    num_button_pressed = 0
 
-    return answer
+    rx_input_cycle_lengths = {
+        src: -1
+        for name, module in circuit.items()
+        for src in circuit[name].inputs
+        if module.outputs[0] == "rx"
+    }
 
+    while True:
+        queue = [("button", LOW, "broadcaster")]
+        num_button_pressed += 1
+
+        while queue:
+            src, pulse, dst = queue.pop(0)
+
+            if src in rx_input_cycle_lengths and pulse == HIGH:
+                rx_input_cycle_lengths[src] = num_button_pressed
+
+            if all(v != -1 for v in rx_input_cycle_lengths.values()):
+                return math.lcm(*rx_input_cycle_lengths.values())
+
+            if dst not in circuit:
+                continue
+
+            output_pulses = circuit[dst].handle((src, pulse))
+            queue.extend(output_pulses)
+        
 
 def run_tests():
     data = parse_input("data/example.txt")
@@ -166,10 +183,6 @@ def run_tests():
     print("Example2 - part 1:", part_one)
     assert part_one == 11_687_500
 
-    # part_two = solve_part_two(data)
-    # print("Example - part 2:", part_two)
-    # assert part_two == ...
-
 
 def main():
     run_tests()
@@ -178,6 +191,8 @@ def main():
 
     answer_one = solve_part_one(data)
     print("Part 1:", answer_one)
+
+    data = parse_input("data/input.txt")
 
     answer_two = solve_part_two(data)
     print("Part 2:", answer_two)
