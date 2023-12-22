@@ -1,4 +1,5 @@
 """Day 22"""
+from functools import cache
 from typing import NamedTuple
 
 
@@ -62,33 +63,53 @@ def parse_input(path: str) -> InputData:
 def solve_part_one(data: InputData) -> int:
     fallen_bricks = simulate_falling(data)
 
-    occupied_positions = {}
-
-    for idx, brick in enumerate(fallen_bricks):
-        for cube in brick.get_cubes():
-            occupied_positions[cube] = idx 
-
-    supported_by = {
-        idx: brick.supported_by(occupied_positions)
-        for idx, brick in enumerate(fallen_bricks)
-    }
-    supporting = {idx: [] for idx in supported_by.keys()}
-    for idx, sb in supported_by.items():
-        for j in sb:
-            supporting[j].append(idx)
-
-    #print("Supported by:", supported_by)
-    #print("Supporting:", supporting)
+    supported_by, supporting = get_supports(fallen_bricks)
 
     answer = 0
 
-    for idx in supported_by.keys():
+    for brick_id in supported_by.keys():
         can_be_disintegrated = all(
-            len([j for j in supported_by[s] if j != idx]) > 0
-            for s in supporting[idx]
+            len([idx for idx in supported_by[s] if idx != brick_id]) > 0
+            for s in supporting[brick_id]
         )
         if can_be_disintegrated:
             answer += 1
+
+    return answer
+
+
+def solve_part_two(data: InputData) -> int:
+    fallen_bricks = simulate_falling(data)
+
+    supported_by, supporting = get_supports(fallen_bricks)
+
+    @cache
+    def _find_falling_bricks(
+        idx: int,
+        removed_bricks: tuple[int, ...],
+    ) -> list[int]:
+        would_fall = []
+
+        for supported_brick in supporting[idx]:
+            if supported_brick in removed_bricks:
+                continue
+
+            if len([
+                j for j in supported_by[supported_brick] 
+                if j not in removed_bricks
+            ]) == 0:
+                would_fall.append(supported_brick)
+
+        for brick_id in would_fall:
+            rb = tuple(set([*removed_bricks, *would_fall]))
+            would_fall.extend(_find_falling_bricks(brick_id, rb))
+
+        return would_fall
+
+    answer = 0
+
+    for brick_id in supporting.keys():
+        answer += len(_find_falling_bricks(brick_id, (brick_id,)))
 
     return answer
 
@@ -99,12 +120,7 @@ def simulate_falling(bricks: InputData) -> InputData:
     while True:
         changed = False
 
-        # Get occupied positions
-        occupied_positions = {}
-
-        for idx, brick in enumerate(bricks):
-            for cube in brick.get_cubes():
-                occupied_positions[cube] = idx
+        occupied_positions = get_occupied_positions(bricks)
 
         # Try to move each brick downwards
         for idx, brick in enumerate(bricks):
@@ -145,10 +161,32 @@ def simulate_falling(bricks: InputData) -> InputData:
     return bricks
 
 
-def solve_part_two(data: InputData) -> int:
-    answer = ...
+def get_occupied_positions(bricks: InputData) -> dict[Position3D, int]:
+    occupied_positions = {}
 
-    return answer
+    for idx, brick in enumerate(bricks):
+        for cube in brick.get_cubes():
+            occupied_positions[cube] = idx
+
+    return occupied_positions
+
+
+def get_supports(
+    bricks: InputData,
+) -> tuple[dict[int, list[int]], dict[int, list[int]]]:
+    occupied_positions = get_occupied_positions(bricks)
+
+    supported_by = {
+        idx: brick.supported_by(occupied_positions)
+        for idx, brick in enumerate(bricks)
+    }
+
+    supporting = {idx: [] for idx in supported_by.keys()}
+    for idx, sb in supported_by.items():
+        for j in sb:
+            supporting[j].append(idx)
+
+    return supported_by, supporting
 
 
 def run_tests():
@@ -160,7 +198,7 @@ def run_tests():
 
     part_two = solve_part_two(data)
     print("Example - part 2:", part_two)
-    assert part_two == ...
+    assert part_two == 7
 
 
 def main():
