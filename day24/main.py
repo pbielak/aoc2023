@@ -63,7 +63,25 @@ def intersection_point_2d(
 
 
 def solve_part_two(data: InputData) -> int:
-    answer = ...
+    import sympy as sym
+
+    rx, ry, rz, rvx, rvy, rvz = sym.symbols("x, y, z, vx, vy, vz")
+    times = []
+
+    eqs = []
+    for idx, h in enumerate(data[:4]):
+        t_i = sym.symbols(f"t_{idx}")
+        times.append(t_i)
+        eqs.extend([
+            sym.Eq(rx + t_i * rvx, h.x + t_i * h.vx),
+            sym.Eq(ry + t_i * rvy, h.y + t_i * h.vy),
+            sym.Eq(rz + t_i * rvz, h.z + t_i * h.vz),
+        ])
+
+    res = sym.solve(eqs, [rx, ry, rz, rvx, rvy, rvz, *times])
+    rock_x, rock_y, rock_z, *_ = res[0]
+
+    answer = rock_x + rock_y + rock_z
 
     return answer
 
@@ -77,7 +95,7 @@ def run_tests():
 
     part_two = solve_part_two(data)
     print("Example - part 2:", part_two)
-    assert part_two == ...
+    assert part_two == 47
 
 
 def main():
